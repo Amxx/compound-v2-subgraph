@@ -1,6 +1,7 @@
 /* eslint-disable prefer-const */ // to satisfy AS compiler
 
 import {
+  MarketListed,
   MarketEntered,
   MarketExited,
   NewCloseFactor,
@@ -11,15 +12,21 @@ import {
 } from '../types/Comptroller/Comptroller'
 
 import { Market, Comptroller } from '../types/schema'
-import { mantissaFactorBD, updateCommonCTokenStats } from './helpers'
+import { CToken } from '../types/templates'
+import { mantissaFactorBD } from './utils/helpers'
+import { fetchMarket } from './utils/market'
+import { updateCommonCTokenStats } from './utils/accountCToken'
+
+export function handleMarketListed(event: MarketListed): void {
+  // instantiate new market
+  fetchMarket(event.params.cToken).save()
+  CToken.create(event.params.cToken)
+}
 
 export function handleMarketEntered(event: MarketEntered): void {
-  let market = Market.load(event.params.cToken.toHexString())
-  let accountID = event.params.account.toHex()
-  let cTokenStats = updateCommonCTokenStats(
-    market.id,
-    market.symbol,
-    accountID,
+    let cTokenStats = updateCommonCTokenStats(
+    event.params.cToken,
+    event.params.account,
     event.transaction.hash,
     event.block.timestamp.toI32(),
     event.block.number.toI32(),
@@ -29,12 +36,9 @@ export function handleMarketEntered(event: MarketEntered): void {
 }
 
 export function handleMarketExited(event: MarketExited): void {
-  let market = Market.load(event.params.cToken.toHexString())
-  let accountID = event.params.account.toHex()
   let cTokenStats = updateCommonCTokenStats(
-    market.id,
-    market.symbol,
-    accountID,
+    event.params.cToken,
+    event.params.account,
     event.transaction.hash,
     event.block.timestamp.toI32(),
     event.block.number.toI32(),
@@ -50,7 +54,7 @@ export function handleNewCloseFactor(event: NewCloseFactor): void {
 }
 
 export function handleNewCollateralFactor(event: NewCollateralFactor): void {
-  let market = Market.load(event.params.cToken.toHexString())
+  let market = fetchMarket(event.params.cToken)
   market.collateralFactor = event.params.newCollateralFactorMantissa
     .toBigDecimal()
     .div(mantissaFactorBD)
