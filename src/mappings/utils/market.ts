@@ -18,8 +18,8 @@ import {
   zeroBD,
 } from './helpers'
 
-let cUSDC = Address.fromString('0x39aa39c021dfbae8fac545936693ac917d5e7563')
-let cETH = Address.fromString('0x4ddc2d193948926d02f9b1fe9e1daa0718270ed5')
+let crUSDC = Address.fromString('0x44fbeBd2F576670a6C33f6Fc0B00aA8c5753b322')
+let crETH = Address.fromString('0xfd609a03B393F1A1cFcAcEdaBf068CAD09a924E2')
 let DAI = Address.fromString('0x89d24a6b4ccb1b6faa2625fe562bdd9a23260359')
 let USDC = Address.fromString('0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48')
 
@@ -107,9 +107,9 @@ export function updateMarket(
 
     /* Exchange rate explanation
        In Practice
-        - If you call the cDAI contract on etherscan it comes back (2.0 * 10^26)
-        - If you call the cUSDC contract on etherscan it comes back (2.0 * 10^14)
-        - The real value is ~0.02. So cDAI is off by 10^28, and cUSDC 10^16
+        - If you call the crDAI contract on etherscan it comes back (2.0 * 10^26)
+        - If you call the crUSDC contract on etherscan it comes back (2.0 * 10^14)
+        - The real value is ~0.02. So crDAI is off by 10^28, and crUSDC 10^16
        How to calculate for tokens with different decimals
         - Must div by tokenDecimals, 10^market.underlyingDecimals
         - Must multiply by ctokenDecimals, 10^8
