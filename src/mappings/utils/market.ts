@@ -19,7 +19,6 @@ import {
 } from './helpers'
 
 let cUSDC = Address.fromString('0x39aa39c021dfbae8fac545936693ac917d5e7563')
-let cETH = Address.fromString('0x4ddc2d193948926d02f9b1fe9e1daa0718270ed5')
 let DAI = Address.fromString('0x89d24a6b4ccb1b6faa2625fe562bdd9a23260359')
 let USDC = Address.fromString('0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48')
 
@@ -93,7 +92,8 @@ export function fetchMarket(marketAddress: Address): Market {
     let contract = CToken.bind(marketAddress)
 
     // It is CETH, which has a slightly different interface
-    if (marketAddress == cETH) {
+    let underlyingAddress = contract.try_underlying()
+    if (underlyingAddress.reverted) { // CEth
       market.underlyingAddress = Address.fromString('0x0000000000000000000000000000000000000000')
       market.underlyingName = 'Ether'
       market.underlyingSymbol = 'ETH'
@@ -102,8 +102,8 @@ export function fetchMarket(marketAddress: Address): Market {
 
       // It is all other CERC20 contracts
     } else {
-      let underlying = ERC20.bind(contract.underlying())
-      market.underlyingAddress = underlying._address
+      let underlying = ERC20.bind(underlyingAddress.value)
+      market.underlyingAddress = underlyingAddress.value
 
       if (underlying._address == DAI) {
         market.underlyingName = 'Dai Stablecoin v1.0 (DAI)'
@@ -163,8 +163,8 @@ export function updateMarket(
     let contract = CToken.bind(contractAddress)
     let usdPriceInEth = getUSDCpriceETH(blockNumber)
 
-    // if cETH, we only update USD price
-    if (marketAddress == cETH) {
+    // if crETH, we only update USD price
+    if (market.underlyingAddress == Address.fromString('0x0000000000000000000000000000000000000000')) {
       market.underlyingPriceUSD = market.underlyingPrice
         .div(usdPriceInEth)
         .truncate(market.underlyingDecimals)
