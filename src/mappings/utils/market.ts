@@ -19,7 +19,6 @@ import {
 } from './helpers'
 
 let crUSDC = Address.fromString('0x44fbeBd2F576670a6C33f6Fc0B00aA8c5753b322')
-let crETH = Address.fromString('0xfd609a03B393F1A1cFcAcEdaBf068CAD09a924E2')
 let DAI = Address.fromString('0x89d24a6b4ccb1b6faa2625fe562bdd9a23260359')
 let USDC = Address.fromString('0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48')
 
