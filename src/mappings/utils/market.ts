@@ -88,8 +88,32 @@ export function fetchMarket(marketAddress: Address): Market {
   let market = Market.load(marketAddress.toHex())
 
   if (market == null) {
-    market = new Market(marketAddress.toHex())
     let contract = CToken.bind(marketAddress)
+
+    market = new Market(marketAddress.toHex())
+    market.borrowRate = zeroBD
+    market.cash = zeroBD
+    market.collateralFactor = zeroBD
+    market.exchangeRate = zeroBD
+    market.interestRateModelAddress = Address.fromString('0x0000000000000000000000000000000000000000')
+    market.name = contract.name()
+    market.numberOfBorrowers = 0
+    market.numberOfSuppliers = 0
+    market.reserves = zeroBD
+    market.supplyRate = zeroBD
+    market.symbol = contract.symbol()
+    market.totalBorrows = zeroBD
+    market.totalSupply = zeroBD
+    market.underlyingPrice = zeroBD
+
+    market.accrualBlockNumber = 0
+    market.blockTimestamp = 0
+    market.borrowIndex = zeroBD
+    market.reserveFactor = BigInt.fromI32(0)
+    market.underlyingPriceUSD = zeroBD
+
+    market.totalInterestAccumulatedExact = BigInt.fromI32(0)
+    market.totalInterestAccumulated = zeroBD
 
     // It is CETH, which has a slightly different interface
     let underlyingAddress = contract.try_underlying()
@@ -116,36 +140,12 @@ export function fetchMarket(marketAddress: Address): Market {
         market.underlyingName = underlyingName.reverted ? '<MissingName>' : underlyingName.value
         market.underlyingSymbol = underlyingSymbol.reverted ? '<MissingSymbol>' : underlyingSymbol.value
         market.underlyingDecimals = underlyingDecimals.reverted ? 18 : underlyingDecimals.value
-      }
 
-      if (marketAddress == cUSDC) {
-        market.underlyingPriceUSD = BigDecimal.fromString('1')
+        if (underlying._address == USDC) {
+          market.underlyingPriceUSD = BigDecimal.fromString('1')
+        }
       }
     }
-
-    market.borrowRate = zeroBD
-    market.cash = zeroBD
-    market.collateralFactor = zeroBD
-    market.exchangeRate = zeroBD
-    market.interestRateModelAddress = Address.fromString('0x0000000000000000000000000000000000000000')
-    market.name = contract.name()
-    market.numberOfBorrowers = 0
-    market.numberOfSuppliers = 0
-    market.reserves = zeroBD
-    market.supplyRate = zeroBD
-    market.symbol = contract.symbol()
-    market.totalBorrows = zeroBD
-    market.totalSupply = zeroBD
-    market.underlyingPrice = zeroBD
-
-    market.accrualBlockNumber = 0
-    market.blockTimestamp = 0
-    market.borrowIndex = zeroBD
-    market.reserveFactor = BigInt.fromI32(0)
-    market.underlyingPriceUSD = zeroBD
-
-    market.totalInterestAccumulatedExact = BigInt.fromI32(0)
-    market.totalInterestAccumulated = zeroBD
   }
 
   return market as Market
@@ -177,7 +177,7 @@ export function updateMarket(
       )
       market.underlyingPrice = tokenPriceEth.truncate(market.underlyingDecimals)
       // if USDC, we only update ETH price
-      if (marketAddress != cUSDC) {
+      if (market.underlyingAddress as Address != USDC) {
         market.underlyingPriceUSD = market.underlyingPrice
           .div(usdPriceInEth)
           .truncate(market.underlyingDecimals)
