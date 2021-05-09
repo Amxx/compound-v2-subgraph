@@ -19,70 +19,9 @@ import {
 } from './helpers'
 
 let cUSDC = Address.fromString('0x39aa39c021dfbae8fac545936693ac917d5e7563')
+let cETH = Address.fromString('0x4ddc2d193948926d02f9b1fe9e1daa0718270ed5')
 let DAI = Address.fromString('0x89d24a6b4ccb1b6faa2625fe562bdd9a23260359')
 let USDC = Address.fromString('0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48')
-
-// Used for all cERC20 contracts
-function getTokenPrice(
-  blockNumber: i32,
-  eventAddress: Address,
-  underlyingAddress: Address,
-  underlyingDecimals: i32,
-): BigDecimal {
-  /* PriceOracle2 is used at the block the Comptroller starts using it.
-   * see here https://etherscan.io/address/0x3d9819210a31b4961b30ef54be2aed79b9c9cd3b#events
-   * Search for event topic 0xd52b2b9b7e9ee655fcb95d2e5b9e0c9f69e7ef2b8e9d2d0ea78402d576d22e22,
-   * and see block 7715908.
-   *
-   * This must use the cToken address.
-   *
-   * Note this returns the value without factoring in token decimals and wei, so we must divide
-   * the number by (ethDecimals - tokenDecimals) and again by the mantissa.
-   * USDC would be 10 ^ ((18 - 6) + 18) = 10 ^ 30
-   *
-   * Note that they deployed 3 different PriceOracles at the beginning of the Comptroller,
-   * and that they handle the decimals different, which can break the subgraph. So we actually
-   * defer to Oracle 1 before block 7715908, which works,
-   * until this one is deployed, which was used for 121 days
-   *
-   * PriceOracle(1) is used (only for the first ~100 blocks of Comptroller. Annoying but we must
-   * handle this. We use it for more than 100 blocks, see reason at top of if statement
-   * of PriceOracle2.
-   *
-   * This must use the token address, not the cToken address.
-   *
-   * Note this returns the value already factoring in token decimals and wei, therefore
-   * we only need to divide by the mantissa, 10^18 */
-  if (blockNumber > 7715908) {
-    let comptroller = Comptroller.load('1')
-    return PriceOracle2.bind(comptroller.priceOracle as Address)
-      .getUnderlyingPrice(eventAddress)
-      .toBigDecimal()
-      .div(exponentToBigDecimal(18 - underlyingDecimals + 18))
-  } else {
-    return PriceOracle.bind(Address.fromString('02557a5e05defeffd4cae6d83ea3d173b272c904'))
-      .getPrice(underlyingAddress)
-      .toBigDecimal()
-      .div(mantissaFactorBD)
-  }
-}
-
-// Returns the price of USDC in eth. i.e. 0.005 would mean ETH is $200
-function getUSDCpriceETH(blockNumber: i32): BigDecimal {
-  // See notes on block number if statement in getTokenPrices()
-  if (blockNumber > 7715908) {
-    let comptroller = Comptroller.load('1')
-    return PriceOracle2.bind(comptroller.priceOracle as Address)
-      .getUnderlyingPrice(cUSDC)
-      .toBigDecimal()
-      .div(exponentToBigDecimal(18 - 6 + 18))
-  } else {
-    return PriceOracle.bind(Address.fromString('02557a5e05defeffd4cae6d83ea3d173b272c904'))
-      .getPrice(USDC)
-      .toBigDecimal()
-      .div(mantissaFactorBD)
-  }
-}
 
 export function fetchMarket(marketAddress: Address): Market {
   let market = Market.load(marketAddress.toHex())
@@ -117,15 +56,14 @@ export function fetchMarket(marketAddress: Address): Market {
 
     // It is CETH, which has a slightly different interface
     let underlyingAddress = contract.try_underlying()
-    if (underlyingAddress.reverted) { // CEth
+    if (underlyingAddress.reverted) {
+      // CEth
       market.underlyingAddress = Address.fromString('0x0000000000000000000000000000000000000000')
       market.underlyingName = 'Ether'
       market.underlyingSymbol = 'ETH'
       market.underlyingDecimals = 18
-      market.underlyingPrice = BigDecimal.fromString('1')
-
-      // It is all other CERC20 contracts
     } else {
+      // It is all other CERC20 contracts
       let underlying = ERC20.bind(underlyingAddress.value)
       market.underlyingAddress = underlyingAddress.value
 
@@ -140,10 +78,6 @@ export function fetchMarket(marketAddress: Address): Market {
         market.underlyingName = underlyingName.reverted ? '<MissingName>' : underlyingName.value
         market.underlyingSymbol = underlyingSymbol.reverted ? '<MissingSymbol>' : underlyingSymbol.value
         market.underlyingDecimals = underlyingDecimals.reverted ? 18 : underlyingDecimals.value
-
-        if (underlying._address == USDC) {
-          market.underlyingPriceUSD = BigDecimal.fromString('1')
-        }
       }
     }
   }
@@ -161,28 +95,8 @@ export function updateMarket(
   if (market.accrualBlockNumber != blockNumber) {
     let contractAddress = Address.fromString(market.id)
     let contract = CToken.bind(contractAddress)
-    let usdPriceInEth = getUSDCpriceETH(blockNumber)
 
-    // if crETH, we only update USD price
-    if (market.underlyingAddress == Address.fromString('0x0000000000000000000000000000000000000000')) {
-      market.underlyingPriceUSD = market.underlyingPrice
-        .div(usdPriceInEth)
-        .truncate(market.underlyingDecimals)
-    } else {
-      let tokenPriceEth = getTokenPrice(
-        blockNumber,
-        contractAddress,
-        market.underlyingAddress as Address,
-        market.underlyingDecimals,
-      )
-      market.underlyingPrice = tokenPriceEth.truncate(market.underlyingDecimals)
-      // if USDC, we only update ETH price
-      if (market.underlyingAddress as Address != USDC) {
-        market.underlyingPriceUSD = market.underlyingPrice
-          .div(usdPriceInEth)
-          .truncate(market.underlyingDecimals)
-      }
-    }
+    updateMarketPrice(market, blockNumber);
 
     market.accrualBlockNumber = contract.accrualBlockNumber().toI32()
     market.blockTimestamp = blockTimestamp
@@ -254,4 +168,82 @@ export function updateMarket(
     market.save()
   }
   return market as Market
+}
+
+function updateMarketPrice(
+  market: Market,
+  blockNumber: i32,
+): void {
+  if (blockNumber > 10984837) {
+    let comptroller = Comptroller.load('1')
+    // eth → usd after  10984837
+    let conversion = PriceOracle2.bind(comptroller.priceOracle as Address)
+      .getUnderlyingPrice(cETH)
+      .toBigDecimal()
+      .div(exponentToBigDecimal(18));
+
+    if (market.underlyingAddress == Address.fromString('0x0000000000000000000000000000000000000000')) {
+      market.underlyingPrice = BigDecimal.fromString('1');
+      market.underlyingPriceUSD = conversion;
+    } else if (market.underlyingAddress as Address == USDC) {
+      market.underlyingPrice = BigDecimal.fromString('1').div(conversion);
+      market.underlyingPriceUSD = BigDecimal.fromString('1');
+    } else {
+      market.underlyingPriceUSD = PriceOracle2.bind(comptroller.priceOracle as Address)
+        .getUnderlyingPrice(Address.fromString(market.id))
+        .toBigDecimal()
+        .div(exponentToBigDecimal(18 - 6 + 18))
+        .truncate(market.underlyingDecimals);
+      market.underlyingPrice = market.underlyingPriceUSD
+        .div(conversion)
+        .truncate(market.underlyingDecimals)
+    }
+  } else if (blockNumber > 7715908) {
+    let comptroller = Comptroller.load('1')
+    // usd → eth before 10984837
+    let conversion = PriceOracle2.bind(comptroller.priceOracle as Address)
+      .getUnderlyingPrice(cUSDC)
+      .toBigDecimal()
+      .div(exponentToBigDecimal(18 - 6 + 18));
+
+    if (market.underlyingAddress == Address.fromString('0x0000000000000000000000000000000000000000')) {
+      market.underlyingPrice = BigDecimal.fromString('1');
+      market.underlyingPriceUSD = conversion;
+    } else if (market.underlyingAddress as Address == USDC) {
+      market.underlyingPrice = conversion;
+      market.underlyingPriceUSD = BigDecimal.fromString('1');
+    } else {
+      market.underlyingPrice = PriceOracle2.bind(comptroller.priceOracle as Address)
+        .getUnderlyingPrice(Address.fromString(market.id))
+        .toBigDecimal()
+        .div(exponentToBigDecimal(18 - 6 + 18))
+        .truncate(market.underlyingDecimals);
+      market.underlyingPriceUSD = market.underlyingPrice
+        .div(conversion)
+        .truncate(market.underlyingDecimals)
+    }
+  } else {
+    // usd → eth before 10984837
+    let conversion = PriceOracle.bind(Address.fromString('02557a5e05defeffd4cae6d83ea3d173b272c904'))
+      .getPrice(USDC)
+      .toBigDecimal()
+      .div(mantissaFactorBD);
+
+    if (market.underlyingAddress == Address.fromString('0x0000000000000000000000000000000000000000')) {
+      market.underlyingPrice = BigDecimal.fromString('1');
+      market.underlyingPriceUSD = conversion;
+    } else if (market.underlyingAddress as Address == USDC) {
+      market.underlyingPrice = conversion;
+      market.underlyingPriceUSD = BigDecimal.fromString('1');
+    } else {
+      market.underlyingPrice = PriceOracle.bind(Address.fromString('02557a5e05defeffd4cae6d83ea3d173b272c904'))
+        .getPrice(market.underlyingAddress as Address)
+        .toBigDecimal()
+        .div(mantissaFactorBD)
+        .truncate(market.underlyingDecimals);
+      market.underlyingPriceUSD = market.underlyingPrice
+        .div(conversion)
+        .truncate(market.underlyingDecimals)
+    }
+  }
 }
