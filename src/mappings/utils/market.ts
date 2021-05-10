@@ -186,13 +186,13 @@ function updateMarketPrice(
       market.underlyingPrice = BigDecimal.fromString('1');
       market.underlyingPriceUSD = conversion;
     } else if (market.underlyingAddress as Address == USDC) {
-      market.underlyingPrice = BigDecimal.fromString('1').div(conversion);
+      market.underlyingPrice = conversion;
       market.underlyingPriceUSD = BigDecimal.fromString('1');
     } else {
       market.underlyingPriceUSD = PriceOracle2.bind(comptroller.priceOracle as Address)
         .getUnderlyingPrice(Address.fromString(market.id))
         .toBigDecimal()
-        .div(exponentToBigDecimal(18 - 6 + 18))
+        .div(exponentToBigDecimal(18 - market.underlyingDecimals + 18))
         .truncate(market.underlyingDecimals);
       market.underlyingPrice = market.underlyingPriceUSD
         .div(conversion)
@@ -208,7 +208,7 @@ function updateMarketPrice(
 
     if (market.underlyingAddress == Address.fromString('0x0000000000000000000000000000000000000000')) {
       market.underlyingPrice = BigDecimal.fromString('1');
-      market.underlyingPriceUSD = conversion;
+      market.underlyingPriceUSD = BigDecimal.fromString('1').div(conversion);
     } else if (market.underlyingAddress as Address == USDC) {
       market.underlyingPrice = conversion;
       market.underlyingPriceUSD = BigDecimal.fromString('1');
@@ -216,7 +216,7 @@ function updateMarketPrice(
       market.underlyingPrice = PriceOracle2.bind(comptroller.priceOracle as Address)
         .getUnderlyingPrice(Address.fromString(market.id))
         .toBigDecimal()
-        .div(exponentToBigDecimal(18 - 6 + 18))
+        .div(exponentToBigDecimal(18 - market.underlyingDecimals + 18))
         .truncate(market.underlyingDecimals);
       market.underlyingPriceUSD = market.underlyingPrice
         .div(conversion)
@@ -231,7 +231,7 @@ function updateMarketPrice(
 
     if (market.underlyingAddress == Address.fromString('0x0000000000000000000000000000000000000000')) {
       market.underlyingPrice = BigDecimal.fromString('1');
-      market.underlyingPriceUSD = conversion;
+      market.underlyingPriceUSD = BigDecimal.fromString('1').div(conversion);
     } else if (market.underlyingAddress as Address == USDC) {
       market.underlyingPrice = conversion;
       market.underlyingPriceUSD = BigDecimal.fromString('1');
