@@ -4,11 +4,11 @@
   "repository": "https://github.com/compound-finance/compound-v2-subgraph",
   "license": "MIT",
   "scripts": {
-    "codegen": "graph codegen --output-dir src/types/",
-    "build": "graph build",
-    "create-local": "graph create amxx/cream --node http://127.0.0.1:8020",
-    "deploy-local": "graph deploy amxx/cream --debug --ipfs http://localhost:5001 --node http://127.0.0.1:8020/",
-    "deploy": "graph deploy amxx/cream --debug --ipfs https://api.thegraph.com/ipfs/ --node https://api.thegraph.com/deploy/",
+    "prepublish": "rimraf build src/types",
+    "build:codegen": "graph codegen --output-dir src/types/ subgraph.${NETWORK:-mainnet}.yaml",
+    "build:subgraph": "graph build subgraph.${NETWORK:-mainnet}.yaml",
+    "build": "npm run build:codegen && npm run build:subgraph",
+    "deploy": "graph deploy --node https://api.thegraph.com/deploy/ --ipfs https://api.thegraph.com/ipfs/ amxx/cream${NETWORK:+-$NETWORK} subgraph.${NETWORK:-mainnet}.yaml",
     "prettier": "./node_modules/.bin/prettier —-write '**/*.ts'"
   },
   "devDependencies": {

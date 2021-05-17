@@ -1,10 +1,10 @@
 /* eslint-disable prefer-const */ // to satisfy AS compiler
 
 // For each division by 10, add one to exponent to truncate one significant figure
-import { Address, BigDecimal, BigInt, log } from '@graphprotocol/graph-ts/index'
+import { Address, BigDecimal, BigInt, log, dataSource } from '@graphprotocol/graph-ts/index'
 import { Market, Comptroller } from '../../types/schema'
 // PriceOracle is valid from Comptroller deployment until block 8498421
-import { PriceOracle } from '../../types/templates/CToken/PriceOracle'
+// import { PriceOracle } from '../../types/templates/CToken/PriceOracle'
 // PriceOracle2 is valid from 8498422 until present block (until another proxy upgrade)
 import { PriceOracle2 } from '../../types/templates/CToken/PriceOracle2'
 import { ERC20 } from '../../types/templates/CToken/ERC20'
@@ -18,9 +18,22 @@ import {
   zeroBD,
 } from './helpers'
 
-let crUSDC = Address.fromString('0x44fbeBd2F576670a6C33f6Fc0B00aA8c5753b322')
-let DAI = Address.fromString('0x89d24a6b4ccb1b6faa2625fe562bdd9a23260359')
-let USDC = Address.fromString('0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48')
+let network = dataSource.network()
+
+let blocksPerYear = network == 'mainnet'
+  ? '2102400' // mainnet
+  : '10512000' // bsc
+
+let crUSDC = network == 'mainnet'
+  ? Address.fromString('0x44fbebd2f576670a6c33f6fc0b00aa8c5753b322') // mainnet
+  : Address.fromString('0xd83c88db3a6ca4a32fff1603b0f7ddce01f5f727') // bsc
+
+let crETH = network == 'mainnet'
+  ? Address.fromString('0xd06527d5e56a3495252a528c4987003b712860ee') // mainnet
+  : Address.fromString('0x1ffe17b99b439be0afc831239ddecda2a790ff3a') // bsc
+
+let DAI = Address.fromString('0x89d24a6b4ccb1b6faa2625fe562bdd9a23260359') // mainnet
+let USDC = Address.fromString('0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48') // mainnet
 
 export function fetchMarket(marketAddress: Address): Market {
   let market = Market.load(marketAddress.toHex())
@@ -147,7 +160,7 @@ export function updateMarket(
     market.supplyRate = contract
       .borrowRatePerBlock()
       .toBigDecimal()
-      .times(BigDecimal.fromString('2102400'))
+      .times(BigDecimal.fromString(blocksPerYear))
       .div(mantissaFactorBD)
       .truncate(mantissaFactor)
 
@@ -160,7 +173,7 @@ export function updateMarket(
     } else {
       market.borrowRate = supplyRatePerBlock.value
         .toBigDecimal()
-        .times(BigDecimal.fromString('2102400'))
+        .times(BigDecimal.fromString(blocksPerYear))
         .div(mantissaFactorBD)
         .truncate(mantissaFactor)
     }
@@ -169,81 +182,31 @@ export function updateMarket(
   return market as Market
 }
 
-// change at 10678764?
 function updateMarketPrice(
   market: Market,
   blockNumber: i32,
 ): void {
-  if (blockNumber > 10678764) {
-    let comptroller = Comptroller.load('1')
-    // eth → usd after  10678764
-    let conversion = PriceOracle2.bind(comptroller.priceOracle as Address)
-      .getUnderlyingPrice(cETH)
-      .toBigDecimal()
-      .div(exponentToBigDecimal(18));
+  let comptroller = Comptroller.load('1')
+  // usd → eth before 10678764
+  let conversion = PriceOracle2.bind(comptroller.priceOracle as Address)
+    .getUnderlyingPrice(crUSDC)
+    .toBigDecimal()
+    .div(exponentToBigDecimal(18 - 6 + 18));
 
-    if (market.underlyingAddress == Address.fromString('0x0000000000000000000000000000000000000000')) {
-      market.underlyingPrice = BigDecimal.fromString('1');
-      market.underlyingPriceUSD = conversion;
-    } else if (market.underlyingAddress as Address == USDC) {
-      market.underlyingPrice = conversion;
-      market.underlyingPriceUSD = BigDecimal.fromString('1');
-    } else {
-      market.underlyingPriceUSD = PriceOracle2.bind(comptroller.priceOracle as Address)
-        .getUnderlyingPrice(Address.fromString(market.id))
-        .toBigDecimal()
-        .div(exponentToBigDecimal(18 - market.underlyingDecimals + 18))
-        .truncate(market.underlyingDecimals);
-      market.underlyingPrice = market.underlyingPriceUSD
-        .div(conversion)
-        .truncate(market.underlyingDecimals)
-    }
-  } else if (blockNumber > 7715908) {
-    let comptroller = Comptroller.load('1')
-    // usd → eth before 10678764
-    let conversion = PriceOracle2.bind(comptroller.priceOracle as Address)
-      .getUnderlyingPrice(cUSDC)
-      .toBigDecimal()
-      .div(exponentToBigDecimal(18 - 6 + 18));
-
-    if (market.underlyingAddress == Address.fromString('0x0000000000000000000000000000000000000000')) {
-      market.underlyingPrice = BigDecimal.fromString('1');
-      market.underlyingPriceUSD = BigDecimal.fromString('1').div(conversion);
-    } else if (market.underlyingAddress as Address == USDC) {
-      market.underlyingPrice = conversion;
-      market.underlyingPriceUSD = BigDecimal.fromString('1');
-    } else {
-      market.underlyingPrice = PriceOracle2.bind(comptroller.priceOracle as Address)
-        .getUnderlyingPrice(Address.fromString(market.id))
-        .toBigDecimal()
-        .div(exponentToBigDecimal(18 - market.underlyingDecimals + 18))
-        .truncate(market.underlyingDecimals);
-      market.underlyingPriceUSD = market.underlyingPrice
-        .div(conversion)
-        .truncate(market.underlyingDecimals)
-    }
+  if (market.underlyingAddress == Address.fromString('0x0000000000000000000000000000000000000000')) {
+    market.underlyingPrice = BigDecimal.fromString('1');
+    market.underlyingPriceUSD = BigDecimal.fromString('1').div(conversion);
+  } else if (market.underlyingAddress as Address == USDC) {
+    market.underlyingPrice = conversion;
+    market.underlyingPriceUSD = BigDecimal.fromString('1');
   } else {
-    // usd → eth before 10678764
-    let conversion = PriceOracle.bind(Address.fromString('02557a5e05defeffd4cae6d83ea3d173b272c904'))
-      .getPrice(USDC)
+    market.underlyingPrice = PriceOracle2.bind(comptroller.priceOracle as Address)
+      .getUnderlyingPrice(Address.fromString(market.id))
       .toBigDecimal()
-      .div(mantissaFactorBD);
-
-    if (market.underlyingAddress == Address.fromString('0x0000000000000000000000000000000000000000')) {
-      market.underlyingPrice = BigDecimal.fromString('1');
-      market.underlyingPriceUSD = BigDecimal.fromString('1').div(conversion);
-    } else if (market.underlyingAddress as Address == USDC) {
-      market.underlyingPrice = conversion;
-      market.underlyingPriceUSD = BigDecimal.fromString('1');
-    } else {
-      market.underlyingPrice = PriceOracle.bind(Address.fromString('02557a5e05defeffd4cae6d83ea3d173b272c904'))
-        .getPrice(market.underlyingAddress as Address)
-        .toBigDecimal()
-        .div(mantissaFactorBD)
-        .truncate(market.underlyingDecimals);
-      market.underlyingPriceUSD = market.underlyingPrice
-        .div(conversion)
-        .truncate(market.underlyingDecimals)
-    }
+      .div(exponentToBigDecimal(18 - market.underlyingDecimals + 18))
+      .truncate(market.underlyingDecimals);
+    market.underlyingPriceUSD = market.underlyingPrice
+      .div(conversion)
+      .truncate(market.underlyingDecimals)
   }
 }
