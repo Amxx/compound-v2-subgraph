@@ -170,13 +170,14 @@ export function updateMarket(
   return market as Market
 }
 
+// change at 10678764?
 function updateMarketPrice(
   market: Market,
   blockNumber: i32,
 ): void {
-  if (blockNumber > 10984837) {
+  if (blockNumber > 10678764) {
     let comptroller = Comptroller.load('1')
-    // eth → usd after  10984837
+    // eth → usd after  10678764
     let conversion = PriceOracle2.bind(comptroller.priceOracle as Address)
       .getUnderlyingPrice(cETH)
       .toBigDecimal()
@@ -200,7 +201,7 @@ function updateMarketPrice(
     }
   } else if (blockNumber > 7715908) {
     let comptroller = Comptroller.load('1')
-    // usd → eth before 10984837
+    // usd → eth before 10678764
     let conversion = PriceOracle2.bind(comptroller.priceOracle as Address)
       .getUnderlyingPrice(cUSDC)
       .toBigDecimal()
@@ -223,7 +224,7 @@ function updateMarketPrice(
         .truncate(market.underlyingDecimals)
     }
   } else {
-    // usd → eth before 10984837
+    // usd → eth before 10678764
     let conversion = PriceOracle.bind(Address.fromString('02557a5e05defeffd4cae6d83ea3d173b272c904'))
       .getPrice(USDC)
       .toBigDecimal()
