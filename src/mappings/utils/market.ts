@@ -18,6 +18,7 @@ import {
   zeroBD,
 } from './helpers'
 
+let blocksPerYear = '2102400'
 let cUSDC = Address.fromString('0x39aa39c021dfbae8fac545936693ac917d5e7563')
 let cETH = Address.fromString('0x4ddc2d193948926d02f9b1fe9e1daa0718270ed5')
 let DAI = Address.fromString('0x89d24a6b4ccb1b6faa2625fe562bdd9a23260359')
@@ -148,7 +149,7 @@ export function updateMarket(
     market.supplyRate = contract
       .borrowRatePerBlock()
       .toBigDecimal()
-      .times(BigDecimal.fromString('2102400'))
+      .times(BigDecimal.fromString(blocksPerYear))
       .div(mantissaFactorBD)
       .truncate(mantissaFactor)
 
@@ -161,7 +162,7 @@ export function updateMarket(
     } else {
       market.borrowRate = supplyRatePerBlock.value
         .toBigDecimal()
-        .times(BigDecimal.fromString('2102400'))
+        .times(BigDecimal.fromString(blocksPerYear))
         .div(mantissaFactorBD)
         .truncate(mantissaFactor)
     }
